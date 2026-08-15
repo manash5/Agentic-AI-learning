@@ -1,0 +1,17 @@
+langgraph
+langchain
+langsmith
+ipykernel
+python-dotenv
+langchain-groq
+langchain_tavily
+langchain-mcp-adapters 
+mcp 
+langgraph-cli[inmem]
+langchain_community
+pymupdf
+transformers
+torch
+pillow
+scikit-learn
+langchain-text-splitters
