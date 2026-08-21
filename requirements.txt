@@ -16,3 +16,5 @@ pillow
 scikit-learn
 langchain-text-splitters
 faiss-cpu
+sentence-transformers
+chromadb
