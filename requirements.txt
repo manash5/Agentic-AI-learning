@@ -18,3 +18,4 @@ langchain-text-splitters
 faiss-cpu
 sentence-transformers
 chromadb
+pageindex
