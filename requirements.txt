@@ -19,3 +19,4 @@ faiss-cpu
 sentence-transformers
 chromadb
 pageindex
+deepagents
