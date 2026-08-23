@@ -20,3 +20,4 @@ sentence-transformers
 chromadb
 pageindex
 deepagents
+tavily-python
