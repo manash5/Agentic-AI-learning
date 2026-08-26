@@ -192,3 +192,54 @@ def extract_text(content) -> str:
                 parts.append(block)
         return "\n".join(parts)
     return str(content)
+
+def render_steps(messages): 
+    """Show the agent's intermediate work: tool calls, todos, subagent tasks"""
+    for msg in messages: 
+        msg_type = getattr(msg, "type", "")
+        if msg_type == "ai" and getattr(msg, "tool_calls", None): 
+            for tc in msg.tool_calls: 
+                name, args = tc["name"], tc["args"]
+                if name == "write_todos": 
+                    with st.expander("📋 Planning — write_todos", expanded=False):
+                        for todo in args.get("todos", []): 
+                            icon = {"pending": "⬜", "in_progress": "🔄",
+                                    "completed": "✅"}.get(todo.get("status"), "⬜")
+                            st.markdown(f"{icon} {todo.get('content', todo)}")
+                elif name == "task": 
+                    with st.expander(
+                        f"🤖 Subagent — {args.get('subagent_type', 'task')}",
+                        expanded=False,
+                    ):
+                        st.markdown(args.get("description", ""))
+                elif name == "internet_search":
+                    with st.expander(
+                        f"🔎 Web search — “{args.get('query', '')}”", expanded=False
+                    ):
+                        st.json(args)
+                elif name in ("write_file", "edit_file", "read_file", "ls",
+                              "glob", "grep"):
+                    label = args.get("file_path") or args.get("path") or ""
+                    with st.expander(f"📁 File system — {name} {label}",
+                                     expanded=False):
+                        st.json(args)
+                else:
+                    with st.expander(f"🛠️ Tool — {name}", expanded=False):
+                        st.json(args)
+        elif msg_type == "tool": 
+            text = extract_text(msg.content)
+            if len(text) > 700:
+                text = text[:700] + " …(truncated)"
+            with st.expander(f"↩️ Result — {getattr(msg, 'name', 'tool')}",
+                             expanded=False):
+                st.code(text)
+
+
+def render_files(files: dict): 
+    if not files: 
+        return 
+    with st.expander(f"🗂️ Virtual files in state ({len(files)})", expanded=False):
+        for path, data in files.items(): 
+            content = data.get("content", "") if isinstance(data, dict) else str(data)
+            st.markdown(f"**`{path}`**")
+            st.code(content[:1500] + ("...(truncated)" if len(content)> 1500 else ""))
