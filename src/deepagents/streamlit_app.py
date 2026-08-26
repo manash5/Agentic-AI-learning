@@ -129,11 +129,11 @@ def build_agent(cfg: dict):
         backend = StoreBackend(store = store, namespace=lambda rt: ('memories',))
         # Seed durable memory inot the store once per session 
         if not st.session_state.get("store_seeded"): 
-            if cfg["use_agents.md"]: 
+            if cfg["use_agents_md"]: 
                 store.put(("memories",), "/projects/AGENTS.md", create_file_data(load_agents_md()))
             if cfg["use_skills"]: 
                 for path, data in load_skill_seed_files().items(): 
-                    store.put(("memories"), path, data)
+                    store.put(("memories",), path, data)
             st.session_state.store_seeded = True
         memory_paths = ['/projects/AGENTS.md'] if cfg["use_agents.md"] else None
 
@@ -153,7 +153,7 @@ def build_agent(cfg: dict):
             "system_prompt": "Research the given topic thoroughly"
                             "Return your findings", 
             "tools": [internet_search], 
-            "response-format": ResearchFindings
+            "response_format": ResearchFindings
         })
 
 
@@ -176,3 +176,19 @@ def build_agent(cfg: dict):
         kwargs['store'] = st.session_state.store
 
     return create_deep_agent(**kwargs), seed_files
+
+
+# Rendering helpers 
+def extract_text(content) -> str: 
+    """AIMessage.content may be a plain string or a list of content blocks"""
+    if isinstance(content, str): 
+        return content
+    if isinstance(content, list): 
+        parts = []
+        for block in content: 
+            if isinstance(block, dict) and block.get("type") == "text": 
+                parts.append(block.get('text', ''))
+            elif isinstance(block, str): 
+                parts.append(block)
+        return "\n".join(parts)
+    return str(content)
