@@ -243,3 +243,176 @@ def render_files(files: dict):
             content = data.get("content", "") if isinstance(data, dict) else str(data)
             st.markdown(f"**`{path}`**")
             st.code(content[:1500] + ("...(truncated)" if len(content)> 1500 else ""))
+
+
+
+
+# Streamlit app 
+st.set_page_config(page_title="Deep Agents Chatbot", page_icon="🧠", layout="wide")
+st.title("🧠 Deep Agents Chatbot")
+st.caption(
+    "Planning • Virtual file system • Context engineering (AGENTS.md + memory) • "
+    "Skills • Subagents (incl. structured output) • Swappable backends • "
+    "Thread memory via checkpointer"
+)
+
+
+# session state init 
+if "checkpointer" not in st.session_state: 
+    st.session_state.checkpointer = MemorySaver()
+if "store" not in st.session_state: 
+    st.session_state.store = InMemoryStore()
+if "thread_id" not in st.session_state: 
+    st.session_state.thread_id = str(uuid.uuid4)
+if "history" not in st.session_state: 
+    st.session_state.history = [] # [(role, text, steps_messages, files)]
+
+
+# Sidebar Configuration 
+with st.sidebar: 
+    st.header("⚙️ Agent configuration")
+
+    model = st.selectbox(
+        "Model", 
+        [
+            "groq:openai/gpt-oss-120b",
+            "groq:qwen/qwen3.6-27b",  
+            "groq:qwen/qwen3-32b",
+        ], 
+        index = 0,
+        help = "Notebook 1: customizing the deep agent's model"
+                "(init_chat_model-style provider:model strings)", 
+        
+    )
+
+    backend = st.radio(
+        "Backend (where files/memory live)", 
+        [
+            "StateBackend (in-state, per thread)",
+            "FilesystemBackend (real disk)",
+            "StoreBackend (cross-thread store)",
+        ],
+        help="Notebook 3: StateBackend = ephemeral per-thread; "
+             "FilesystemBackend = real files under deepagentsdemo/; "
+             "StoreBackend = survives across threads via a LangGraph store.",
+    )
+
+    st.subheader("Features")
+    use_agents_md = st.checkbox(
+        "Load AGENTS.md context (memory=)", value=True,
+        help="Notebook 2: durable 'who you are' context from projects/AGENTS.md",
+    )
+
+    use_skills = st.checkbox(
+        "Skills (/skills/)", value=True,
+        help="Notebook 2: langgraph, python, aws, report-writer skills",
+    )
+
+    use_subagents = st.checkbox(
+        "Subagents", value=True,
+        help="Notebook 4: research-agent + structured-output researcher",
+    )
+
+    if use_subagents: 
+        st.markdown(SUBAGENT_DOC)
+
+    system_prompt = st.text_area(
+        "System prompt", DEFAULT_SYSTEM_PROMPT, height=160,
+        help="Notebook 1 & 2: custom system prompt layered on the built-in "
+             "Claude-Code-style deep agent prompt.",
+    )
+
+    st.divider()
+    st.caption(f"🧵 Thread: `{st.session_state.thread_id[:8]}…`")
+    col1, col2 = st.columns(2)
+    if col1.button("🆕 New thread", use_container_width=True,
+                   help="Same agent + store, fresh conversation. With "
+                        "StoreBackend, files written earlier are still there!"):
+        st.session_state.thread_id = str(uuid.uuid4())
+        st.session_state.history = []
+        st.rerun()
+    if col2.button("🗑️ Reset all", use_container_width=True,
+                   help="Wipe checkpointer, store, and chat."):
+        for k in ("checkpointer", "store", "store_seeded", "thread_id", "history"):
+            st.session_state.pop(k, None)
+        st.rerun()
+
+
+    # missing - key warnigns 
+    if model.startswith("groq") and not os.getenv("GROQ_API_KEY"):
+        st.error("GROQ_API_KEY missing from .env")
+    if not os.getenv("TAVILY_API_KEY"):
+        st.warning("TAVILY_API_KEY missing — web search will fail")
+
+
+cfg = {
+    "model": model, 
+    "backend": backend, 
+    "use_agents_md": use_agents_md, 
+    "use_skills": use_skills, 
+    "use_subagents": use_subagents, 
+    "system_prompt": system_prompt
+}
+
+
+# Rebuild the agent only whne the configuration changes 
+cfg_key = str(sorted(cfg.items()))
+if st.session_state.get("cfg_key") != cfg_key:
+    st.session_state.agent, st.session_state.seed_files = build_agent(cfg)
+    st.session_state.cfg_key = cfg_key
+
+# replay chat history 
+for role, text, steps, files in st.session_state.history: 
+    with st.chat_message(role): 
+        if steps: 
+            render_steps(steps)
+        st.markdown(text)
+        if files: 
+            render_files(files)
+
+
+# Chat input / agent invocation 
+if prompt := st.chat_input("Ask me anything - research, code, AWS, LangGraph"): 
+    with st.chat_message("user"): 
+        st.markdown(prompt)
+    st.session_state.history.append(("user", prompt, None, None))
+
+    payload = {"messages": [{"role": "user", "content": prompt}]}
+    # State Backend : seed AGENTS.md + skills into this threads virtual FS 
+    if st.session_state.seed_files: 
+        payload["files"] = st.session_state.seed_files
+
+    config = {"configurable": {"thread_id": st.session_state.thread_id}, "recursion_limit": 100}
+
+    with st.chat_message("assistant"): 
+        with st.spinner("Deep agent plannning, researching, delegating"): 
+            try: 
+                result = st.session_state.agent.invoke(payload, config = config)
+            except Exception as e: 
+                st.error(f"Agent error: {e}")
+                st.stop()
+
+        # only render the messages generated for this turn 
+        all_msgs = result["messages"]
+        turn_start = max(
+            (i for i, m in enumerate(all_msgs)
+             if getattr(m, "type", "") == "human"),
+            default=0,
+        )
+
+        new_msgs = all_msgs[turn_start +1:]
+
+
+        render_steps(new_msgs)
+        answer= extract_text(all_msgs[-1].content) or "*(no text response)"
+        st.markdown(answer)
+
+        # virtual files (StateBackend) - notebook 3 backend check 
+        files = {
+            p: d for p, d in result.get("files", {}).items()
+            if p not in st.session_state.send_files
+        }
+
+        render_files(files)
+
+    st.session_state.history.append(("assistant", answer, new_msgs, files))
