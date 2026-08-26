@@ -76,14 +76,17 @@ def load_agents_md() -> str:
     return path.read_text(encoding='utf-8') if path.exists() else ""
 
 def load_skill_seed_files() -> dict: 
-    """Read every file under deepagents/skills/ and convert it to in-state
-        files data so the StateBackend agent can discover and read skills"""
+    """Seed only compact skill indexes into the agent's virtual filesystem."""
     files = {}
     skills_root = DEMO_DIR/ "skills"
     if skills_root.exists(): 
-        for f in skills_root.rglob("*.md"): 
-            virtual = "/skills/" + f.relative_to(skills_root).as_posix()
-            files[virtual] = create_file_data(f.read_text(encoding='utf-8'))
+        for skill_dir in skills_root.iterdir():
+            skill_file = skill_dir / "SKILL.md"
+            if skill_file.is_file():
+                virtual = "/skills/" + skill_dir.name + "/SKILL.md"
+                files[virtual] = create_file_data(
+                    skill_file.read_text(encoding="utf-8")
+                )
 
     return files 
 
@@ -406,7 +409,7 @@ if prompt := st.chat_input("Ask me anything - research, code, AWS, LangGraph"):
         # virtual files (StateBackend) - notebook 3 backend check 
         files = {
             p: d for p, d in result.get("files", {}).items()
-            if p not in st.session_state.send_files
+            if p not in st.session_state.seed_files
         }
 
         render_files(files)
