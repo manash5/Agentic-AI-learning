@@ -91,11 +91,9 @@ def load_skill_seed_files() -> dict:
 
 # Agent Factory - assembles ALL the features based on sidebar config 
 DEFAULT_SYSTEM_PROMPT = (
-    "You are an expert AI assistant and researcher. You conduct thorough "
-    "research using your internet_search tool when needed, plan multi-step "
-    "work with write_todos, offload bulky content to files, use your skills "
-    "when a query matches one, and delegate deep-dive research to your "
-    "subagents. Always cite sources when research was involved."
+    "You are an expert assistant and researcher. Use internet_search when "
+    "needed, plan complex work with write_todos, use matching skills, save "
+    "large content to files, delegate deep research, and cite research sources."
 )
 
 SUBAGENT_DOC = """
@@ -142,16 +140,14 @@ def build_agent(cfg: dict):
     if cfg["use_subagents"]: 
         subagents.append({
             "name": "research-agent", 
-            "description": "Used to research in depth questions", 
-            "system_prompt": "You are a great researcher. Research thoroughly and cite your sources", 
+            "description": "Researches questions in depth", 
+            "system_prompt": "Research thoroughly and cite sources.", 
             "tools": [internet_search]
         })
         subagents.append({
             "name": "structured-researcher", 
-            "description": "Researches topics and returns structured findings"
-                            "(summary, confidence score, source URLs)", 
-            "system_prompt": "Research the given topic thoroughly"
-                            "Return your findings", 
+            "description": "Returns structured research findings", 
+            "system_prompt": "Research the topic and return your findings.", 
             "tools": [internet_search], 
             "response_format": ResearchFindings
         })
