@@ -21,3 +21,4 @@ chromadb
 pageindex
 deepagents
 tavily-python
+streamlit
