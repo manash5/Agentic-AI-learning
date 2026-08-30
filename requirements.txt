@@ -25,3 +25,4 @@ langchain_huggingface
 streamlit
 beautifulsoup4
 tiktoken
+litellm 
