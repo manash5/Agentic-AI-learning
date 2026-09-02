@@ -27,3 +27,5 @@ beautifulsoup4
 tiktoken
 litellm 
 langchain_litellm
+fastapi
+jinja2
